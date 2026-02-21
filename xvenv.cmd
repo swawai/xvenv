@@ -543,8 +543,14 @@ if ($_xvenv_modules -contains 'git_config') {
         bat_add "call :CheckPath `"git_config`" `"$GIT_CONFIG_GLOBAL`""
     }
     if (-not [string]::IsNullOrWhiteSpace($GIT_SSH_COMMAND)) { bat_add "set `"GIT_SSH_COMMAND=$GIT_SSH_COMMAND`"" }
-    if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_NAME)) { bat_add "set `"GIT_AUTHOR_NAME=$GIT_AUTHOR_NAME`"" }
-    if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_EMAIL)) { bat_add "set `"GIT_AUTHOR_EMAIL=$GIT_AUTHOR_EMAIL`"" }
+    if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_NAME)) { 
+        bat_add "set `"GIT_AUTHOR_NAME=$GIT_AUTHOR_NAME`""
+        bat_add "set `"GIT_COMMITTER_NAME=$GIT_AUTHOR_NAME`""
+    }
+    if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_EMAIL)) { 
+        bat_add "set `"GIT_AUTHOR_EMAIL=$GIT_AUTHOR_EMAIL`""
+        bat_add "set `"GIT_COMMITTER_EMAIL=$GIT_AUTHOR_EMAIL`""
+    }
 
     $Ig = "$XVENV_PROJECT_HOME\.gitignore"
     if (-not (Test-Path $Ig)) {
