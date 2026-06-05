@@ -21,7 +21,7 @@ $UV_PROJECT_ENVIRONMENT    = "$XVENV_HOME\python\.venv"
 
 # Git Config
 $GIT_CONFIG_GLOBAL         = "$XVENV_HOME\.gitconfig"
-$GIT_SSH_COMMAND           = "ssh -i '$env:USERPROFILE\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes" # e.g., "ssh -i '$env:USERPROFILE\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes"
+$GIT_SSH_COMMAND           = "ssh -i '$env:USERPROFILE\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes"
 $GIT_AUTHOR_NAME           = "SwawHQ"
 $GIT_AUTHOR_EMAIL          = "swawhq@gmail.com"
 
