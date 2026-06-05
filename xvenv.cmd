@@ -1,22 +1,27 @@
 <# :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-@echo off&chcp 65001>nul&set "xvenv_ipc=%~dp0.xvenv\env_init.cmd"
-powershell -nop -ep bypass -c "&{&([scriptblock]::create([IO.File]::ReadAllText('%~f0')))@args}"%*&&call "%xvenv_ipc%"&exit/b
-#>$ipc_sb=[Text.StringBuilder]::new();function bat_add([string]$c){[void]$ipc_sb.AppendLine($c)}
-function bat_save{[IO.File]::WriteAllText($env:xvenv_ipc,$ipc_sb.ToString(),[Text.UTF8Encoding]::new($false))}
+@echo off&chcp 65001>nul&set "xvenv_launch=%~dp0.xvenv\launch.cmd"
+powershell -nop -ep bypass -c "&{&([scriptblock]::create([IO.File]::ReadAllText('%~f0')))@args}" %*&&call "%xvenv_launch%"&exit/b
+#>$ipc_sb=[Text.StringBuilder]::new();$env_cmd_sb=[Text.StringBuilder]::new();$env_ps1_sb=[Text.StringBuilder]::new()
+function bat_add([string]$c){[void]$ipc_sb.AppendLine($c)}
+function env_cmd_add([string]$c){[void]$env_cmd_sb.AppendLine($c)}
+function env_ps1_add([string]$c){[void]$env_ps1_sb.AppendLine($c)}
+function ps_escape([string]$v){if($null -eq $v){return ""};$v.Replace("'","''")}
+function env_set([string]$n,[string]$v){env_cmd_add "set `"$n=$v`""; env_ps1_add "`$env:$n = '$((ps_escape $v))'"}
+function env_path_prepend([string[]]$p){$j=($p|?{-not [string]::IsNullOrWhiteSpace($_)}) -join ';'; if($j){env_cmd_add "set `"PATH=$j;%PATH%`""; env_ps1_add "`$env:PATH = '$((ps_escape "$j;"))' + `$env:PATH"}}
+function bat_save{[IO.File]::WriteAllText($env:xvenv_launch,$ipc_sb.ToString(),[Text.UTF8Encoding]::new($false))}
+function env_save{[IO.File]::WriteAllText("$XVENV_HOME\env.cmd",$env_cmd_sb.ToString(),[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText("$XVENV_HOME\env.ps1",$env_ps1_sb.ToString(),[Text.UTF8Encoding]::new($false))}
 #> :::::by xvenv.com::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-
-# =============================
 # Configuration
 # =============================
 $XVENV_SITE                = "https://xvenv.com"
-$XVENV_PROJECT_HOME        = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetDirectoryName($env:xvenv_ipc))
+$XVENV_PROJECT_HOME        = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetDirectoryName($env:xvenv_launch))
 $XVENV_HOME                = "$XVENV_PROJECT_HOME\.xvenv"
 $UV_PROJECT_ENVIRONMENT    = "$XVENV_HOME\python\.venv"
 
 # Git Config
 $GIT_CONFIG_GLOBAL         = "$XVENV_HOME\.gitconfig"
-$GIT_SSH_COMMAND           = "ssh -i '%XVENV_PROJECT_HOME%\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes" # e.g., "ssh -i '%XVENV_PROJECT_HOME%\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes"
+$GIT_SSH_COMMAND           = "ssh -i '$env:USERPROFILE\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes" # e.g., "ssh -i '$env:USERPROFILE\.ssh\id_ed25519_swaw' -o IdentitiesOnly=yes"
 $GIT_AUTHOR_NAME           = "SwawHQ"
 $GIT_AUTHOR_EMAIL          = "swawhq@gmail.com"
 
@@ -27,18 +32,19 @@ $_xvenv_modules            = @( #"uv"            # uv package manager (install +
                                 #"uv_python"     # (depends on uv) config python venv variables
                                 #"uv_sync"       # (depends on uv + uv_python) create/sync venv via uv
                                 "vscode_config" # auto-generate .vscode/settings.json
-                                #"bun"           # Bun JavaScript runtime (install + PATH)
+                                "bun"           # Bun JavaScript runtime (install + PATH)
+                                #"hugo"          # Hugo static site generator (install + PATH)
                                 #"env_load"      # load .env into current session
                                 #"msvc"          # portable MSVC compiler + Windows SDK (Refer To https://gist.github.com/mmozeiko/7f3162ec2988e81e56d5c4e22cde9977)
                                 #"rust"          # (depends on msvc) Rust toolchain via rustup
-                                "go"            # Go programming language (install + PATH)
+                                #"go"            # Go programming language (install + PATH)
                                 #"git"           # MinGit for Windows (install + PATH)
                                 "git_config"    # Git environment isolation (config, ssh, author)
                                 "pwsh"          # PowerShell 7 (install + PATH)
-                                #"run_vscode"         # Execute VSCode (code) after setup
+                                "run_vscode"         # Execute VSCode (code) after setup
                                 #"run_cursor"         # Execute Cursor IDE (cursor) after setup
                                 #"run_windsurf"       # Execute Windsurf IDE (windsurf) after setup
-                                "run_antigravity"    # Execute Antigravity IDE (antigravity) after setup
+                                #"run_antigravity"    # Execute Antigravity IDE (antigravity) after setup
                                 #"run_zed"            # Execute Zed IDE (zed) after setup
                                 #"run_cmd"            # Execute cmd.exe and keep it open
                                 "run_pwsh"           # Execute pwsh.exe and keep it open
@@ -46,6 +52,7 @@ $_xvenv_modules            = @( #"uv"            # uv package manager (install +
 $_xvenv_uv_url             = "https://github.com/astral-sh/uv/releases/download/0.10.2/uv-x86_64-pc-windows-msvc.zip"
 $_xvenv_uv_python_version  = "3.13"
 $_xvenv_bun_url            = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.15/bun-windows-x64.zip"
+$_xvenv_hugo_url           = "https://github.com/gohugoio/hugo/releases/download/v0.157.0/hugo_extended_withdeploy_0.157.0_windows-amd64.zip"
 $_xvenv_pwsh_url           = "https://github.com/PowerShell/PowerShell/releases/download/v7.5.2/PowerShell-7.5.2-win-x64.zip"
 $_xvenv_msvc_channel_url   = "https://aka.ms/vs/17/release/channel"
 $_xvenv_rust_version       = "stable"
@@ -54,7 +61,75 @@ $_xvenv_rustup_url         = "https://static.rust-lang.org/rustup/dist/x86_64-pc
 $_xvenv_go_url             = "https://go.dev/dl/go1.22.4.windows-amd64.zip"
 $_xvenv_git_url            = "https://github.com/git-for-windows/git/releases/download/v2.45.2.windows.1/MinGit-2.45.2-64-bit.zip"
 
+
+# Parse Arguments
 # =============================
+if ($args.Count -gt 0) {
+    $argPath = $args[0].Trim('"')
+    if (Test-Path $argPath) {
+        $GitDir = $null
+        if ($argPath -match '(?i)[\\/]?\.git[\\/]?$') {
+            $GitDir = $argPath
+        } elseif (Test-Path "$argPath\.git") {
+            $GitDir = "$argPath\.git"
+        }
+        
+        if ($null -ne $GitDir) {
+            $RepoDir = [System.IO.Path]::GetDirectoryName($GitDir)
+            $GitExe = "git.exe"
+            if ($_xvenv_modules -contains 'git' -and (Test-Path "$XVENV_HOME\git\cmd\git.exe")) {
+                $GitExe = "$XVENV_HOME\git\cmd\git.exe"
+            }
+            if (-not (Get-Command $GitExe -ErrorAction SilentlyContinue) -and -not (Test-Path $GitExe)) {
+                Write-Host "Git is not available. Please run xvenv.cmd setup first, or install Git globally." -Fore Red
+                Read-Host "Press Enter to exit"
+            } else {
+                Write-Host "`n[xvenv] Git Repository Detected: $RepoDir" -Fore Cyan
+                Push-Location $RepoDir
+                $Remotes = & $GitExe remote -v
+                if (-not $Remotes) {
+                    Write-Host "No remotes found in this repository." -Fore Yellow
+                } else {
+                    $OriginPush = $Remotes | Select-String -Pattern "^origin\s+(.*)\s+\(push\)$"
+                    if ($OriginPush) {
+                        $CurrentUrl = $OriginPush.Matches[0].Groups[1].Value
+                        Write-Host "Current Remote 'origin' URL: $CurrentUrl" -Fore Green
+                        
+                        $NewUrl = $null
+                        $Proto = ""
+                        if ($CurrentUrl -match "(?i)^https?://") {
+                            $NewUrl = $CurrentUrl -replace "(?i)^https?://([^/]+)/", "git@`$1:"
+                            $Proto = "SSH"
+                        } elseif ($CurrentUrl -match "(?i)^git@") {
+                            $NewUrl = $CurrentUrl -replace "(?i)^git@([^:]+):", "https://`$1/"
+                            $Proto = "HTTPS"
+                        }
+                        
+                        if ($NewUrl) {
+                            $Choice = Read-Host "`nSwitch to $Proto protocol ($NewUrl)? (y/n)"
+                            if ($Choice -match "(?i)^y(es)?$") {
+                                Write-Host "`nSwitching to: $NewUrl" -Fore Cyan
+                                & $GitExe remote set-url origin $NewUrl
+                                Write-Host "Done." -Fore Green
+                            } else { Write-Host "`nNo changes made." }
+                        } else {
+                            Write-Host "Unrecognized protocol... no quick switch available."
+                        }
+                    } else {
+                        Write-Host "Remote 'origin' not found. Remotes:"
+                        Write-Host $Remotes
+                    }
+                }
+                Pop-Location
+                Read-Host "`nPress Enter to exit"
+            }
+            [IO.File]::WriteAllText($env:xvenv_launch, "@echo off`r`n")
+            exit 0
+        }
+    }
+}
+
+
 # System & Constants & Helpers
 # =============================
 $ErrorActionPreference = 'Stop'
@@ -175,7 +250,7 @@ function Extract-Vsix ($VsixPath, $Dest) {
                     $d=Join-Path $Dest ([Uri]::UnescapeDataString($e.FullName.Substring(9)))
                     if(!($d.EndsWith('/'))) {
                         $dir = [IO.Path]::GetDirectoryName($d)
-                        if (-not $createdDirs.Contains($dir)) {
+                        if (-not $createdDirs.ContainsKey($dir)) {
                             [void][IO.Directory]::CreateDirectory($dir)
                             $createdDirs[$dir] = $true
                         }
@@ -193,46 +268,46 @@ function Extract-Vsix ($VsixPath, $Dest) {
 }
 
 
-
-# =============================
 # Main Logic
 # =============================
 Write-Host "by $XVENV_SITE" -Fore Cyan
 if (-not (Test-Path $XVENV_HOME)) { New-Item -ItemType Directory -Path $XVENV_HOME -Force | Out-Null }
 if (-not (Test-Path $_xvenv_download_dir)) { New-Item -ItemType Directory -Path $_xvenv_download_dir -Force | Out-Null }
+env_cmd_add "@echo off"
+env_cmd_add "rem Generated by xvenv.cmd. Pure environment for cmd.exe."
+env_ps1_add "# Generated by xvenv.cmd. Dot-source this file to load the xvenv environment."
 bat_add "@echo off"
 bat_add "set `"COL_RED=$([char]27)[31m`""
 bat_add "set `"COL_GREEN=$([char]27)[32m`""
 bat_add "set `"COL_YELLOW=$([char]27)[33m`""
 bat_add "set `"COL_RESET=$([char]27)[0m`""
-bat_add "set `"XVENV_SITE=$XVENV_SITE`""; bat_add "set `"XVENV_PROJECT_HOME=$XVENV_PROJECT_HOME`""; bat_add "set `"XVENV_HOME=$XVENV_HOME`""
+bat_add "call `"%~dp0env.cmd`""
+env_set "XVENV_SITE" $XVENV_SITE; env_set "XVENV_PROJECT_HOME" $XVENV_PROJECT_HOME; env_set "XVENV_HOME" $XVENV_HOME
+env_path_prepend @($XVENV_HOME, "$XVENV_HOME\bin")
 
-# ---------------------------
 # 1. uv
 # ---------------------------
 if ($_xvenv_modules -contains 'uv') {
     $H = "$XVENV_HOME\uv"; $Exe = "$H\uv.exe"
     if (-not (Test-Path $Exe)) { Write-Host "[STEP] Installing uv..." -Fore Cyan; Download-Extract $_xvenv_uv_url $H $null $false }
-    bat_add "set `"XVENV_UV_HOME=$H`""
-    bat_add "set `"PATH=$H;%PATH%`""
+    env_set "XVENV_UV_HOME" $H
+    env_path_prepend $H
     bat_add "call :CheckCmd `"uv`" `"uv`" `"$Exe`""
 }
 
-# ---------------------------
 # 2. uv_python
 # ---------------------------
 if ($_xvenv_modules -contains 'uv_python'-and $_xvenv_modules -contains 'uv') {
-    bat_add "set `"UV_PROJECT_ENVIRONMENT=$UV_PROJECT_ENVIRONMENT`""; $Env:UV_PROJECT_ENVIRONMENT=$UV_PROJECT_ENVIRONMENT
+    env_set "UV_PROJECT_ENVIRONMENT" $UV_PROJECT_ENVIRONMENT; $Env:UV_PROJECT_ENVIRONMENT=$UV_PROJECT_ENVIRONMENT
     $Uv = "$XVENV_HOME\uv\uv.exe"
     if (-not (Test-Path $UV_PROJECT_ENVIRONMENT)) {
         Write-Host "[STEP] Creating venv (Python $_xvenv_uv_python_version)..." -Fore Cyan
         Push-Location $XVENV_PROJECT_HOME; & $Uv venv $UV_PROJECT_ENVIRONMENT --python $_xvenv_uv_python_version | Out-Null; Pop-Location
     }
-    bat_add "set `"PATH=$UV_PROJECT_ENVIRONMENT\Scripts;%PATH%`""
+    env_path_prepend "$UV_PROJECT_ENVIRONMENT\Scripts"
     bat_add "call :CheckCmd `"uv_python`" `"python`" `"$UV_PROJECT_ENVIRONMENT\Scripts\python.exe`""
 }
 
-# ---------------------------
 # 3. uv_sync
 # ---------------------------
 if ($_xvenv_modules -contains 'uv_sync' -and $_xvenv_modules -contains 'uv_python') {
@@ -244,7 +319,6 @@ if ($_xvenv_modules -contains 'uv_sync' -and $_xvenv_modules -contains 'uv_pytho
     bat_add "call :CheckPath `"uv_sync`" `"$XVENV_PROJECT_HOME\.pyproject.toml`" `"uv sync --check`""
 }
 
-# ---------------------------
 # 4. bun
 # ---------------------------
 if ($_xvenv_modules -contains 'bun') {
@@ -253,12 +327,23 @@ if ($_xvenv_modules -contains 'bun') {
         Write-Host "[STEP] Setting up bun..." -Fore Cyan; Download-Extract $_xvenv_bun_url $H "bun-windows-x64" $false
         [IO.File]::WriteAllText("$H\bunx.cmd", "@echo off`r`n`"%~dp0bun.exe`" x %*")
     }
-    bat_add "set `"XVENV_BUN_HOME=$H`""
-    bat_add "set `"PATH=$H;%PATH%`""
+    env_set "XVENV_BUN_HOME" $H
+    env_path_prepend $H
     bat_add "call :CheckCmd `"bun`" `"bun`" `"$Exe`""
 }
 
+# 4.5. hugo
 # ---------------------------
+if ($_xvenv_modules -contains 'hugo') {
+    $H = "$XVENV_HOME\hugo"; $Exe = "$H\hugo.exe"
+    if (-not (Test-Path $Exe)) {
+        Write-Host "[STEP] Setting up Hugo..." -Fore Cyan; Download-Extract $_xvenv_hugo_url $H $null $false
+    }
+    env_set "XVENV_HUGO_HOME" $H
+    env_path_prepend $H
+    bat_add "call :CheckCmd `"hugo`" `"hugo`" `"$Exe`""
+}
+
 # 5. msvc
 # ---------------------------
 if ($_xvenv_modules -contains 'msvc') {
@@ -453,11 +538,26 @@ set LIB=%~dp0VC\Tools\MSVC\$mvDir\lib\x64;%~dp0Windows Kits\10\Lib\$svDir\ucrt\x
         }
     }
     
-    bat_add "call `"$Bat`""; bat_add "set `"XVENV_MSVC_HOME=$H_Real`""
-    bat_add "call :CheckCmd `"msvc`" `"cl`" `"$((gci "$H_Real\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe" | Sort-Object Name -Descending | Select-Object -First 1).FullName)`""
+    $MsvcToolDir = Get-ChildItem "$H_Real\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+    $SdkBinDir = Get-ChildItem "$H_Real\Windows Kits\10\bin" -Directory | Where-Object { $_.Name -match '^\d' } | Sort-Object Name -Descending | Select-Object -First 1
+    $mvDir = $MsvcToolDir.Name
+    $svDir = $SdkBinDir.Name
+    $MsvcRoot = "$H_Real\VC\Tools\MSVC\$mvDir"
+    $SdkRoot = "$H_Real\Windows Kits\10"
+    $ClExe = "$MsvcRoot\bin\Hostx64\x64\cl.exe"
+    env_set "XVENV_MSVC_HOME" $H_Real
+    env_set "VSCMD_ARG_HOST_ARCH" "x64"
+    env_set "VSCMD_ARG_TGT_ARCH" "x64"
+    env_set "VCToolsVersion" $mvDir
+    env_set "WindowsSDKVersion" "$svDir\"
+    env_set "VCToolsInstallDir" "$MsvcRoot\"
+    env_set "WindowsSdkBinPath" "$SdkRoot\bin\"
+    env_path_prepend @("$MsvcRoot\bin\Hostx64\x64", "$SdkRoot\bin\$svDir\x64", "$SdkRoot\bin\$svDir\x64\ucrt")
+    env_set "INCLUDE" "$MsvcRoot\include;$SdkRoot\Include\$svDir\ucrt;$SdkRoot\Include\$svDir\shared;$SdkRoot\Include\$svDir\um;$SdkRoot\Include\$svDir\winrt;$SdkRoot\Include\$svDir\cppwinrt"
+    env_set "LIB" "$MsvcRoot\lib\x64;$SdkRoot\Lib\$svDir\ucrt\x64;$SdkRoot\Lib\$svDir\um\x64"
+    bat_add "call :CheckCmd `"msvc`" `"cl`" `"$ClExe`""
 }
 
-# ---------------------------
 # 6. rust
 # ---------------------------
 if ($_xvenv_modules -contains 'rust') {
@@ -500,11 +600,10 @@ if ($_xvenv_modules -contains 'rust') {
         Move-Item $tmpCargo $H -Force
         Move-Item $tmpRustup $Rustup -Force
     }
-    bat_add "set `"RUSTUP_HOME=$Rustup`""; bat_add "set `"CARGO_HOME=$H`""; bat_add "set `"PATH=$H\bin;%PATH%`""
+    env_set "RUSTUP_HOME" $Rustup; env_set "CARGO_HOME" $H; env_path_prepend "$H\bin"
     bat_add "call :CheckCmd `"rust`" `"cargo`" `"$H\bin\cargo.exe`""
 }
 
-# ---------------------------
 # 7. go
 # ---------------------------
 if ($_xvenv_modules -contains 'go') {
@@ -512,15 +611,14 @@ if ($_xvenv_modules -contains 'go') {
     if (-not (Test-Path $Exe)) {
         Write-Host "[STEP] Setting up Go..." -Fore Cyan; Download-Extract $_xvenv_go_url $H "go" $false
     }
-    bat_add "set `"XVENV_GO_HOME=$H`""
-    bat_add "set `"GOROOT=$H`""
-    bat_add "set `"GOPATH=$XVENV_PROJECT_HOME\.xvenv\gopath`""
-    bat_add "set `"GOCACHE=$XVENV_PROJECT_HOME\.xvenv\gocache`""
-    bat_add "set `"PATH=$H\bin;%PATH%`""
+    env_set "XVENV_GO_HOME" $H
+    env_set "GOROOT" $H
+    env_set "GOPATH" "$XVENV_PROJECT_HOME\.xvenv\gopath"
+    env_set "GOCACHE" "$XVENV_PROJECT_HOME\.xvenv\gocache"
+    env_path_prepend "$H\bin"
     bat_add "call :CheckCmd `"go`" `"go`" `"$Exe`""
 }
 
-# ---------------------------
 # 8. git
 # ---------------------------
 if ($_xvenv_modules -contains 'git') {
@@ -528,37 +626,36 @@ if ($_xvenv_modules -contains 'git') {
     if (-not (Test-Path $Exe)) {
         Write-Host "[STEP] Setting up Git..." -Fore Cyan; Download-Extract $_xvenv_git_url $H $null $false
     }
-    bat_add "set `"XVENV_GIT_HOME=$H`""
-    bat_add "set `"PATH=$H\cmd;%PATH%`""
+    env_set "XVENV_GIT_HOME" $H
+    env_path_prepend "$H\cmd"
     bat_add "call :CheckCmd `"git`" `"git`" `"$Exe`""
 }
 
-# ---------------------------
 # 9. git_config
 # ---------------------------
 if ($_xvenv_modules -contains 'git_config') {
     if (-not [string]::IsNullOrWhiteSpace($GIT_CONFIG_GLOBAL)) { 
         if (-not (Test-Path $GIT_CONFIG_GLOBAL)) { New-Item -ItemType File -Path $GIT_CONFIG_GLOBAL -Force | Out-Null }
-        bat_add "set `"GIT_CONFIG_GLOBAL=$GIT_CONFIG_GLOBAL`""
+        env_set "GIT_CONFIG_GLOBAL" $GIT_CONFIG_GLOBAL
         bat_add "call :CheckPath `"git_config`" `"$GIT_CONFIG_GLOBAL`""
     }
-    if (-not [string]::IsNullOrWhiteSpace($GIT_SSH_COMMAND)) { bat_add "set `"GIT_SSH_COMMAND=$GIT_SSH_COMMAND`"" }
+    if (-not [string]::IsNullOrWhiteSpace($GIT_SSH_COMMAND)) { env_set "GIT_SSH_COMMAND" $GIT_SSH_COMMAND }
     if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_NAME)) { 
-        bat_add "set `"GIT_AUTHOR_NAME=$GIT_AUTHOR_NAME`""
-        bat_add "set `"GIT_COMMITTER_NAME=$GIT_AUTHOR_NAME`""
+        env_set "GIT_AUTHOR_NAME" $GIT_AUTHOR_NAME
+        env_set "GIT_COMMITTER_NAME" $GIT_AUTHOR_NAME
     }
     if (-not [string]::IsNullOrWhiteSpace($GIT_AUTHOR_EMAIL)) { 
-        bat_add "set `"GIT_AUTHOR_EMAIL=$GIT_AUTHOR_EMAIL`""
-        bat_add "set `"GIT_COMMITTER_EMAIL=$GIT_AUTHOR_EMAIL`""
+        env_set "GIT_AUTHOR_EMAIL" $GIT_AUTHOR_EMAIL
+        env_set "GIT_COMMITTER_EMAIL" $GIT_AUTHOR_EMAIL
     }
 
     $Ig = "$XVENV_PROJECT_HOME\.gitignore"
     if (-not (Test-Path $Ig)) {
-        [IO.File]::WriteAllText($Ig, ".xvenv/`n.env`n")
+        [IO.File]::WriteAllText($Ig, "`n.xvenv/`n.env`n")
     } else {
         $IgContent = Get-Content $Ig -Raw
-        if ($IgContent -notmatch "(?m)^\.xvenv/?$") { Add-Content $Ig ".xvenv/" }
-        if ($IgContent -notmatch "(?m)^\.env$")    { Add-Content $Ig ".env" }
+        if ($IgContent -notmatch "(?m)^\.xvenv/\s") { Add-Content $Ig "`n.xvenv/" }
+        if ($IgContent -notmatch "(?m)^\.env\s")    { Add-Content $Ig "`n.env" }
     }
 
     if (-not (Test-Path "$XVENV_PROJECT_HOME\.git")) {
@@ -567,18 +664,16 @@ if ($_xvenv_modules -contains 'git_config') {
     }
 }
 
-# ---------------------------
 # 10. pwsh
 # ---------------------------
 if ($_xvenv_modules -contains 'pwsh') {
     $H = "$XVENV_HOME\pwsh"; $Exe = "$H\pwsh.exe"
     if (-not (Test-Path $Exe)) { Write-Host "[STEP] Installing pwsh..." -Fore Cyan; Download-Extract $_xvenv_pwsh_url $H $null $false }
-    bat_add "set `"XVENV_PWSH_HOME=$H`""
-    bat_add "set `"PATH=$H;%PATH%`""
+    env_set "XVENV_PWSH_HOME" $H
+    env_path_prepend $H
     bat_add "call :CheckCmd `"pwsh`" `"pwsh`" `"$Exe`""
 }
 
-# ---------------------------
 # 11. vscode_config
 # ---------------------------
 if ($_xvenv_modules -contains 'vscode_config') {
@@ -635,47 +730,33 @@ if ($_xvenv_modules -contains 'vscode_config') {
     bat_add "call :CheckPath `"vscode_config`" `"$XVENV_PROJECT_HOME\.vscode\settings.json`""
 }
 
-# ---------------------------
 # 12. env_load
 # ---------------------------
 if ($_xvenv_modules -contains 'env_load') {
     bat_add "call :CheckPath `"env_load`" `"$XVENV_PROJECT_HOME\.env`""
     if (Test-Path "$XVENV_PROJECT_HOME\.env") {
         Get-Content "$XVENV_PROJECT_HOME\.env" | %{ 
-            if($_ -match "^([^#=]+)=(.*)$"){ bat_add "set `"$($Matches[1].Trim())=$($Matches[2].Trim())`"" } 
+            if($_ -match "^([^#=]+)=(.*)$"){ env_set ($Matches[1].Trim()) ($Matches[2].Trim()) } 
         }
     }
 }
 
-# ---------------------------
 # 13. Finalize & Validate
 # ---------------------------
 # Launch IDEs
 $LaunchCount = 0
-if ($_xvenv_modules -contains 'run_vscode') {
-    bat_add "call :CheckCmd `"run_vscode`" `"code`" `"`" `"start`""
-    bat_add "if not errorlevel 1 cmd /c code `"%XVENV_PROJECT_HOME%`""
-    $LaunchCount++
-}
-if ($_xvenv_modules -contains 'run_cursor') {
-    bat_add "call :CheckCmd `"run_cursor`" `"cursor`" `"`" `"start`""
-    bat_add "if not errorlevel 1 cmd /c cursor `"%XVENV_PROJECT_HOME%`""
-    $LaunchCount++
-}
-if ($_xvenv_modules -contains 'run_windsurf') {
-    bat_add "call :CheckCmd `"run_windsurf`" `"windsurf`" `"`" `"start`""
-    bat_add "if not errorlevel 1 cmd /c windsurf `"%XVENV_PROJECT_HOME%`""
-    $LaunchCount++
-}
-if ($_xvenv_modules -contains 'run_antigravity') {
-    bat_add "call :CheckCmd `"run_antigravity`" `"antigravity`" `"`" `"start`""
-    bat_add "if not errorlevel 1 cmd /c antigravity `"%XVENV_PROJECT_HOME%`""
-    $LaunchCount++
-}
-if ($_xvenv_modules -contains 'run_zed') {
-    bat_add "call :CheckCmd `"run_zed`" `"zed`" `"`" `"start`""
-    bat_add "if not errorlevel 1 start `"`" /b zed `"%XVENV_PROJECT_HOME%`""
-    $LaunchCount++
+foreach ($ide in @(
+    @{ m='run_vscode'; cmd='code'; args='cmd /c code "%XVENV_PROJECT_HOME%"' },
+    @{ m='run_cursor'; cmd='cursor'; args='cmd /c cursor "%XVENV_PROJECT_HOME%"' },
+    @{ m='run_windsurf'; cmd='windsurf'; args='cmd /c windsurf "%XVENV_PROJECT_HOME%"' },
+    @{ m='run_antigravity'; cmd='antigravity'; args='cmd /c antigravity "%XVENV_PROJECT_HOME%"' },
+    @{ m='run_zed'; cmd='zed'; args='start "" /b zed "%XVENV_PROJECT_HOME%"' }
+)) {
+    if ($_xvenv_modules -contains $ide.m) {
+        bat_add "call :CheckCmd `"$($ide.m)`" `"$($ide.cmd)`" `"`" `"start`""
+        bat_add "if not errorlevel 1 $($ide.args)"
+        $LaunchCount++
+    }
 }
 
 
@@ -703,7 +784,6 @@ if ($LaunchCmd -or $LaunchPwsh -or $LaunchCount -eq 0) {
 }
 bat_add "goto :eof"
 
-# ---------------------------
 # Batch Helper Functions
 # ---------------------------
 bat_add ""
@@ -743,5 +823,5 @@ bat_add "    echo    %Name% %COL_YELLOW%WARN %Helper% Shadowed by %ACTUAL%%COL_R
 bat_add ")"
 bat_add "exit /b"
 
+env_save
 bat_save
-
